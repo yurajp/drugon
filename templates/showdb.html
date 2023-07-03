@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Archive</title>
+    <link rel="stylesheet" type="text/css" href="static/style.css">
+  </head>
+  <body>
+    <div id="arch">
+      <img src="static/cols.png" width="140px">
+    </div>
+    <div class="db">
+      {{ range . }}
+      <p class="drugs">{{ .Name }}</p>
+      <p class="date">{{ .Start }} - {{ .Finish }}</p>
+      {{ end }}
+    </div>
+  </body>
+</html>

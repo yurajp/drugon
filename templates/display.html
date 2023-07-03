@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>MedicBox</title>
+    <link rel="stylesheet" type="text/css" href="static/style.css">
+  </head>
+  <body>
+    <div id="arch">
+      <a href="http://localhost:8754/showdb"><img src="static/cols.png" width="120px"></a>
+    </div>
+    <div id="add">
+      <a href="http://localhost:8754/add"><img src="static/pills.png" width="140px"></a>
+    </div>
+    <div class="field">
+      <h2>{{ .Time }}</h2>
+      <br>
+      {{ range .List }}
+      <p><a class="list" href="https://www.vidal.ru/drugs?t=all&q={{ . }}">{{ . }}</a> <a class="delete" href="http://localhost:8754/delete?name={{ . }}">✘</a>
+      {{ end }}
+      
+      <br><br>
+      <div class="subm">
+        <a href="http://localhost:8754/delay">⏰</a>
+      </div>
+      <div class="subm">
+        <a href="http://localhost:8754/exit">❎</a>
+      </div>
+    </div>
+  </body>
+</html>
