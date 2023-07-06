@@ -236,12 +236,8 @@ func main() {
   }()
   cmd := exec.Command("termux-open-url", "http://localhost" + Port)
   cmd.Run()
-  vol := exec.Command("termux-volume", "music", "10")
-  vol.Run()
-  snd := exec.Command("play-audio", "data/shaker.wav")
-  err := snd.Run()
-  if err != nil {
-    fmt.Println(" sound: ", err)
-  }
+  exec.Command("termux-volume", "music", "12").Run()
+  exec.Command("play-audio", "static/shake.wav").Run()
+ 
   <-quit
 }
