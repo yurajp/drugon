@@ -8,16 +8,7 @@ import (
   _ "github.com/mattn/go-sqlite3"
 )
 
-type DrugAct struct {
-  Name string
-  Added bool
-}
 
-type DrugRow struct {
-  Name string
-  Start string
-  Finish string
-}
 
 func dbRows() ([]DrugRow, error) {
   db, err := sql.Open("sqlite3", "data/drugs.db")

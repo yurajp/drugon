@@ -9,35 +9,51 @@ import (
   "net/http"
   "os/exec"
   "html/template"
+
 )
 
-type Medicine struct {
-  Box []Drug `json:"box"`
-}
-
-type DrugList struct {
-  Time string
-  List []string
-}
-
-type Drug struct {
-  Name string `json:"name"`
-  DayTime int `json:"day_time"`
-}
 
 var (
-  port = ":8754"
+  Port string
+  jsn = "data/drugs.json"
+  //go:embed templates
+  tempDir embed.FS
+  //go:embed static
+  staticDir embed.FS
   med Medicine
-  jsn = "data/med.json"
   dtemp *template.Template
   atemp *template.Template
   stemp *template.Template
   quit = make(chan struct{}, 1)
 )
 
+func PrepareData() error {
+  if _, err := os.Stat(jsn); err != nil {
+    if os.IsNotExist(err) {
+      init := Medicine{}
+      inj, _ := json.Marshal(init)
+      os.WriteFile(jsn, inj, 0640)
+    }
+  }
+  f, err := os.Open(jsn)
+  if err != nil {
+    return fmt.Errorf("open json: %w", err)
+  }
+  defer f.Close()
+  data, err := ioutil.ReadAll(f)
+  if err != nil {
+    return fmt.Errorf("read json: %w", err)
+  }
+  err = json.Unmarshal(data, &med)
+  if err != nil {
+    return fmt.Errorf("unmarshal json: %w", err)
+  }
+  return nil
+}
+
 func (d *DrugList) SetTime() {
-  h := time.Now().Add(-2 * time.Hour).Hour()
-  if h > 16 {
+  h := time.Now().Hour()
+  if h > 18 {
     d.Time = "Вечер"
   } else {
     d.Time = "День"
@@ -45,7 +61,7 @@ func (d *DrugList) SetTime() {
 }
 
 func (m *Medicine) makeList() DrugList {
-  dl := DrugList{}
+  dl := DrugList{Port: Port}
   dl.SetTime()
   lst := []string{}
   for _, d := range m.Box {
@@ -59,7 +75,6 @@ func (m *Medicine) makeList() DrugList {
           lst = append(lst, d.Name)
         }
     }
-    
   }
   dl.List = lst
   return dl
@@ -70,94 +85,6 @@ func (m *Medicine) AddDrug(d Drug) {
   m.Box = nb
 }
 
-func display(w http.ResponseWriter, r *http.Request) {
-  if _, err := os.Stat(jsn); err != nil {
-    if os.IsNotExist(err) {
-      init := Medicine{}
-      inj, _ := json.Marshal(init)
-      os.WriteFile(jsn, inj, 0640)
-    }
-  }
-  f, err := os.Open(jsn)
-  if err != nil {
-    fmt.Println(" file: ", err)
-    return
-  }
-  defer f.Close()
-  data, err := ioutil.ReadAll(f)
-  if err != nil {
-    fmt.Println(" read: ", err)
-  }
-  err = json.Unmarshal(data, &med)
-  if err != nil {
-    fmt.Println(" unmarshal: ", err)
-    return
-  }
-  drl := med.makeList()
-  err = dtemp.Execute(w, drl)
-  if err != nil {
-    fmt.Println(" execute: ", err)
-  }
-}
-
-func deleteD(w http.ResponseWriter, r *http.Request) {
-  nm := r.URL.Query().Get("name")
-  fmt.Printf(" %s will be deleted\n", nm)
-  newb := []Drug{}
-  for _, d := range med.Box {
-    if d.Name != nm {
-      newb = append(newb, d)
-    }
-  }
-  med = Medicine{newb}
-  err := med.WriteData()
-  if err != nil {
-    fmt.Println(" write data: ", err)
-    http.Error(w, err.Error(), http.StatusInternalServerError)
-  }
-  dl := med.makeList()
-  dtemp.Execute(w, dl)
-  err = archive(DrugAct{nm, false})
-  if err != nil {
-    fmt.Println(" db: ", err)
-  }
-}
-
-func addD(w http.ResponseWriter, r *http.Request) {
-  if r.Method == http.MethodGet {
-    atemp.Execute(w, nil)
-  }
-  if r.Method == http.MethodPost {
-    err := r.ParseForm()
-    if err != nil {
-      fmt.Println(" form: ", err)
-      http.Error(w, err.Error(), http.StatusBadRequest)
-    }
-    name := r.FormValue("name")
-    day := r.FormValue("day")
-    evening := r.FormValue("evening")
-    time := 0
-    if day != "" {
-      time += 1
-    }
-    if evening != "" {
-      time += 2
-    }
-    med.AddDrug(Drug{name, time})
-    fmt.Printf("  %s Added!\n", name)
-    err = med.WriteData()
-    if err != nil {
-      fmt.Println(" write data: ", err)
-      http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
-    dl := med.makeList()
-    dtemp.Execute(w, dl)
-    err = archive(DrugAct{name, true})
-    if err != nil {
-      fmt.Println(" db: ", err)
-    }
-  }
-}
 
 func (m Medicine) WriteData() error {
   data, err := json.MarshalIndent(med, " ", "  ")
@@ -168,39 +95,18 @@ func (m Medicine) WriteData() error {
   return nil
 }
 
-func delay(w http.ResponseWriter, r *http.Request) {
-  cmd := exec.Command("sv", "up", "atd")
-  err := cmd.Run()
-  if err != nil {
-    fmt.Println(" atd: ", err)
-  }
-  at := exec.Command("at", "-f", "/data/data/com.termux/files/home/cronsh/drugon.sh", "now", "+", "30", "minutes")
-  err = at.Run()
-  if err != nil {
-    fmt.Println(" at: ", err)
-  }
- // quit <-struct{}{}
-}
-
-func showDb(w http.ResponseWriter, r *http.Request) {
-  drs, err := dbRows()
-  if err != nil {
-    fmt.Println(" dbrows: ", err)
-    http.Error(w, err.Error(), http.StatusInternalServerError)
-    return
-  }
-  if len(drs) == 0 {
-    fmt.Println(" EMPTY DB")
-    return
-  }
-  stemp.Execute(w, drs)
-}
-
-func exit(w http.ResponseWriter, r *http.Request) {
-  quit <-struct{}{}
-}
 
 func main() {
+  var p int
+  flag.IntVar(&p, "p", 8754, "server port number")
+  flag.Parse()
+  if p < 2500 {
+    fmt.Println("Port should be Number greater than 2500")
+    time.Sleep(5 * time.Second)
+    return
+  }
+  Port = fmt.Sprintf(":%d", p)
+
   mux := http.NewServeMux()
   mux.HandleFunc("/", display)
   mux.HandleFunc("/showdb", showDb)
@@ -209,17 +115,17 @@ func main() {
   mux.HandleFunc("/delay", delay)
   mux.HandleFunc("/exit", exit)
   fs := http.FileServer(http.Dir("./static"))
-  mux.Handle("/static/", http.StripPrefix("/static/", fs))
-  dtemp, _ = template.ParseFiles("templates/display.html")
-  atemp, _ = template.ParseFiles("templates/add.html")
-  stemp, _ = template.ParseFiles("templates/showdb.html")
+  mux.Handle("/static/", http.FS(staticDir)
+  dtemp, _ = template.ParseFS(tempDir, "templates/display.html")
+  atemp, _ = template.ParseFS(tempDir, "templates/add.html")
+  stemp, _ = template.ParseFS(tempDir, "templates/showdb.html")
   server := http.Server{Addr: port, Handler: mux}
   go server.ListenAndServe()
-  cmd := exec.Command("termux-open-url", "http://localhost:8754")
+  cmd := exec.Command("xdg-open", "http://localhost:8754")
   cmd.Run()
-  vol := exec.Command("termux-volume", "music", "11")
+  vol := exec.Command("amixer", "-D", "pulse", "sset", "Master", "75%")
   vol.Run()
-  snd := exec.Command("termux-media-player", "play", "data/shaker.wav")
+  snd := exec.Command("ffplay", "-v", "0", "-nodisp", "-autoexit", "data/shaker.wav")
   snd.Run()
   
   <-quit
