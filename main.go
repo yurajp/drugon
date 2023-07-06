@@ -1,8 +1,10 @@
 package main
 
 import (
+  "flag"
   "fmt"
   "os"
+  "embed"
   "io/ioutil"
   "time"
   "encoding/json"
@@ -114,12 +116,12 @@ func main() {
   mux.HandleFunc("/add", addD)
   mux.HandleFunc("/delay", delay)
   mux.HandleFunc("/exit", exit)
-  fs := http.FileServer(http.Dir("./static"))
-  mux.Handle("/static/", http.FS(staticDir)
+  fsrv := http.FileServer(http.FS(staticDir))
+  mux.Handle("/static/", fsrv)
   dtemp, _ = template.ParseFS(tempDir, "templates/display.html")
   atemp, _ = template.ParseFS(tempDir, "templates/add.html")
   stemp, _ = template.ParseFS(tempDir, "templates/showdb.html")
-  server := http.Server{Addr: port, Handler: mux}
+  server := http.Server{Addr: Port, Handler: mux}
   go server.ListenAndServe()
   cmd := exec.Command("xdg-open", "http://localhost:8754")
   cmd.Run()
