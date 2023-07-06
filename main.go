@@ -1,6 +1,7 @@
 package main
 
 import (
+  "flag"
   "fmt"
   "os"
   "io/ioutil"
@@ -9,6 +10,7 @@ import (
   "net/http"
   "os/exec"
   "html/template"
+  "embed"
 )
 
 type Medicine struct {
@@ -18,6 +20,7 @@ type Medicine struct {
 type DrugList struct {
   Time string
   List []string
+  Port string
 }
 
 type Drug struct {
@@ -26,8 +29,12 @@ type Drug struct {
 }
 
 var (
-  port = ":8754"
+  Port string
   med Medicine
+  //go:embed static
+  staticDir embed.FS
+  //go:embed templates
+  tempDir embed.FS
   jsn = "data/med.json"
   dtemp *template.Template
   atemp *template.Template
@@ -36,8 +43,8 @@ var (
 )
 
 func (d *DrugList) SetTime() {
-  h := time.Now().Add(-2 * time.Hour).Hour()
-  if h > 16 {
+  h := time.Now().Hour()
+  if h > 18 {
     d.Time = "Вечер"
   } else {
     d.Time = "День"
@@ -59,9 +66,9 @@ func (m *Medicine) makeList() DrugList {
           lst = append(lst, d.Name)
         }
     }
-    
   }
   dl.List = lst
+  dl.Port = Port
   return dl
 }
 
@@ -169,17 +176,16 @@ func (m Medicine) WriteData() error {
 }
 
 func delay(w http.ResponseWriter, r *http.Request) {
-  cmd := exec.Command("sv", "up", "atd")
+  cmd := exec.Command("sv-enable", "atd")
   err := cmd.Run()
   if err != nil {
     fmt.Println(" atd: ", err)
   }
-  at := exec.Command("at", "-f", "/data/data/com.termux/files/home/cronsh/drugon.sh", "now", "+", "30", "minutes")
+  at := exec.Command("at", "-f", "/data/data/com.termux/files/home/cronsh/drugon.sh", "now", "+", "20", "minutes")
   err = at.Run()
   if err != nil {
     fmt.Println(" at: ", err)
   }
- // quit <-struct{}{}
 }
 
 func showDb(w http.ResponseWriter, r *http.Request) {
@@ -201,6 +207,14 @@ func exit(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+  var portNum int
+  flag.IntVar(&portNum, "p", 8754, "server port number")
+  flag.Parse()
+  if portNum < 2500 {
+    fmt.Println(" port should be greater than 2500")
+    return
+  }
+  Port = fmt.Sprintf(":%d", portNum)
   mux := http.NewServeMux()
   mux.HandleFunc("/", display)
   mux.HandleFunc("/showdb", showDb)
@@ -208,20 +222,26 @@ func main() {
   mux.HandleFunc("/add", addD)
   mux.HandleFunc("/delay", delay)
   mux.HandleFunc("/exit", exit)
-  fs := http.FileServer(http.Dir("./static"))
-  mux.Handle("/static/", http.StripPrefix("/static/", fs))
-  dtemp, _ = template.ParseFiles("templates/display.html")
-  atemp, _ = template.ParseFiles("templates/add.html")
-  stemp, _ = template.ParseFiles("templates/showdb.html")
-  server := http.Server{Addr: port, Handler: mux}
-  go server.ListenAndServe()
-  cmd := exec.Command("termux-open-url", "http://localhost:8754")
+  fsr := http.FileServer(http.FS(staticDir))
+  mux.Handle("/static/", fsr)
+  dtemp, _ = template.ParseFS(tempDir, "templates/display.html")
+  atemp, _ = template.ParseFS(tempDir, "templates/add.html")
+  stemp, _ = template.ParseFS(tempDir, "templates/showdb.html")
+  server := http.Server{Addr: Port, Handler: mux}
+  go func() {
+    err := server.ListenAndServe()
+    if err != nil {
+      fmt.Println(" server: ", err)
+    }
+  }()
+  cmd := exec.Command("termux-open-url", "http://localhost" + Port)
   cmd.Run()
-  vol := exec.Command("termux-volume", "music", "11")
+  vol := exec.Command("termux-volume", "music", "10")
   vol.Run()
-  snd := exec.Command("termux-media-player", "play", "data/shaker.wav")
-  snd.Run()
-  
+  snd := exec.Command("play-audio", "data/shaker.wav")
+  err := snd.Run()
+  if err != nil {
+    fmt.Println(" sound: ", err)
+  }
   <-quit
-  
 }
