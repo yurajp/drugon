@@ -2,4 +2,4 @@
 
 
 
-cd /home/golangs/drugon && ./drugon
+cd /home/golangs/drugon-linux/drugon && ./drugon-linux

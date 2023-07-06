@@ -6,6 +6,7 @@
     <link rel="stylesheet" type="text/css" href="static/style.css">
   </head>
   <body>
+    {{ $Port := .Port }}
     <div id="arch">
       <a href="http://localhost{{ .Port }}/showdb"><img src="static/cols.png" width="120px"></a>
     </div>
@@ -15,7 +16,7 @@
     <div class="field">
       <h2>{{ .Time }}</h2>
       <br>
-      {{ $Port = .Port }}
+  
       {{ range .List }}
       <p><a class="list" href="https://www.vidal.ru/drugs?t=all&q={{ . }}">{{ . }}</a> <a class="delete" href="http://localhost{{ $Port }}/delete?name={{ . }}">✘</a>
       {{ end }}

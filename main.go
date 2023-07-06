@@ -123,13 +123,10 @@ func main() {
   stemp, _ = template.ParseFS(tempDir, "templates/showdb.html")
   server := http.Server{Addr: Port, Handler: mux}
   go server.ListenAndServe()
-  cmd := exec.Command("xdg-open", "http://localhost:8754")
-  cmd.Run()
-  vol := exec.Command("amixer", "-D", "pulse", "sset", "Master", "75%")
-  vol.Run()
-  snd := exec.Command("ffplay", "-v", "0", "-nodisp", "-autoexit", "data/shaker.wav")
-  snd.Run()
+
+  exec.Command("xdg-open", "http://localhost:8754").Run()
+  exec.Command("amixer", "-D", "pulse", "sset", "Master", "75%").Run()
+  exec.Command("ffplay", "-v", "0", "-nodisp", "-autoexit", "static/shake.wav").Run()
   
   <-quit
-  
 }
